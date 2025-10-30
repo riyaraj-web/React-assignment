@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Farming Game</title>
+  <style>
+    :root{--tile:64px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;margin:18px;background:#eef7ea}
+    h1{margin:6px 0 12px}
+    #game{display:grid;grid-template-columns:repeat(5, var(--tile));grid-gap:6px;background:#7bb26a;padding:10px;border-radius:12px}
+    .cell{width:var(--tile);height:var(--tile);display:flex;align-items:center;justify-content:center;border-radius:8px;position:relative;box-shadow:0 2px 0 rgba(0,0,0,0.08)}
+    .soil{background:#8b5a2b}
+    .planted{background:linear-gradient(#7fbf5f,#5aa34a)}
+    .player{position:absolute;right:6px;bottom:6px;width:18px;height:18px;border-radius:50%;background:#fce883;border:2px solid #a86c00;box-shadow:0 1px 0 rgba(0,0,0,0.2)}
+    .crop{font-size:20px;pointer-events:none}
+    #hud{margin-top:12px;display:flex;gap:16px;align-items:center}
+    .panel{background:white;padding:8px 12px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.06)}
+    button{padding:6px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    small{display:block;color:#555;margin-top:6px}
+  </style>
+</head>
+<body>
+  <h1>Simple Farming Game</h1>
+  <div id="game" aria-label="farm-grid"></div>
+
+  <div id="hud">
+    <div class="panel">Score: <strong id="score">0</strong><small>Harvest crops to earn points</small></div>
+    <div class="panel">Water: <strong id="water">3</strong><small>Use W to water (speeds growth)</small></div>
+    <div class="panel">Time: <strong id="time">0s</strong><small>Elapsed</small></div>
+    <div style="display:flex;gap:8px">
+      <button id="reset">Reset</button>
+      <button id="help">Controls</button>
+    </div>
+  </div>
+
+  <script>
+    // Simple farming game (grid-based). Controls:
+    // Arrow keys: move. P: plant. W: water. H or Space: harvest. R: reset.
+
+    const ROWS = 5, COLS = 5;
+    const game = document.getElementById('game');
+    const scoreEl = document.getElementById('score');
+    const waterEl = document.getElementById('water');
+    const timeEl = document.getElementById('time');
+    const resetBtn = document.getElementById('reset');
+    const helpBtn = document.getElementById('help');
+
+    let grid = []; // each cell: {state: 'empty'|'planted', stage:0..3, timer:seconds}
+    let player = {r:2,c:2};
+    let score = 0;
+    let water = 3;
+    let seconds = 0;
+
+    function initGrid(){
+      grid = [];
+      game.innerHTML = '';
+      game.style.gridTemplateColumns = `repeat(${COLS}, var(--tile))`;
+      for(let r=0;r<ROWS;r++){
+        for(let c=0;c<COLS;c++){
+          const cell = {state:'empty',stage:0,timer:0, watered:false};
+          grid.push(cell);
+          const div = document.createElement('div');
+          div.className = 'cell soil';
+          div.dataset.r = r; div.dataset.c = c;
+          div.innerHTML = '<div class="crop"></div>';
+          game.appendChild(div);
+        }
+      }
+      render();
+    }
+
+    function idx(r,c){return r*COLS + c}
+
+    function render(){
+      for(let r=0;r<ROWS;r++){
+        for(let c=0;c<COLS;c++){
+          const i = idx(r,c);
+          const cell = grid[i];
+          const div = game.children[i];
+          div.className = 'cell ' + (cell.state==='empty' ? 'soil' : 'planted');
+          const crop = div.querySelector('.crop');
+          if(cell.state==='planted'){
+            // stage icons
+            const icons = ['🌱','🌿','🌾','🍎'];
+            crop.textContent = icons[cell.stage] || icons[icons.length-1];
+          } else crop.textContent = '';
+          // player marker
+          if(player.r===r && player.c===c){
+            if(!div.querySelector('.player')){
+              const p = document.createElement('div'); p.className='player'; div.appendChild(p);
+            }
+          } else {
+            const p = div.querySelector('.player'); if(p) p.remove();
+          }
+        }
+      }
+      scoreEl.textContent = score;
+      waterEl.textContent = water;
+      timeEl.textContent = seconds + 's';
+    }
+
+    function move(dr,dc){
+      const nr = Math.max(0, Math.min(ROWS-1, player.r+dr));
+      const nc = Math.max(0, Math.min(COLS-1, player.c+dc));
+      player.r = nr; player.c = nc; render();
+    }
+
+    function plant(){
+      const i = idx(player.r, player.c);
+      const cell = grid[i];
+      if(cell.state==='empty'){
+        cell.state='planted'; cell.stage=0; cell.timer=0; cell.watered=false;
+        render();
+      }
+    }
+
+    function waterCell(){
+      const i = idx(player.r, player.c);
+      const cell = grid[i];
+      if(water>0 && cell.state==='planted'){
+        cell.watered = true; water--; render();
+      }
+    }
+
+    function harvest(){
+      const i = idx(player.r, player.c);
+      const cell = grid[i];
+      if(cell.state==='planted' && cell.stage>=3){
+        // harvest
+        cell.state='empty'; cell.stage=0; cell.timer=0; cell.watered=false;
+        score += 10; render();
+      }
+    }
+
+    // growth tick: called every second
+    function tick(){
+      seconds++;
+      for(let i=0;i<grid.length;i++){
+        const cell = grid[i];
+        if(cell.state==='planted'){
+          // watered crops grow faster: every 3s per stage vs 6s
+          const needed = cell.watered ? 3 : 6;
+          cell.timer++;
+          if(cell.timer >= needed && cell.stage < 3){
+            cell.stage++;
+            cell.timer = 0;
+            // once watered, benefit used once
+            if(cell.watered) cell.watered = false;
+          }
+        }
+      }
+      render();
+    }
+
+    // keyboard
+    window.addEventListener('keydown', e => {
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+        e.preventDefault();
+        if(e.key==='ArrowUp') move(-1,0);
+        if(e.key==='ArrowDown') move(1,0);
+        if(e.key==='ArrowLeft') move(0,-1);
+        if(e.key==='ArrowRight') move(0,1);
+      }
+      if(e.key==='p' || e.key==='P') plant();
+      if(e.key==='w' || e.key==='W') waterCell();
+      if(e.key==='h' || e.key==='H' || e.code==='Space') harvest();
+      if(e.key==='r' || e.key==='R') resetGame();
+    });
+
+    function resetGame(){
+      score = 0; water = 3; seconds = 0; initGrid();
+    }
+
+    resetBtn.addEventListener('click', resetGame);
+    helpBtn.addEventListener('click', ()=>{
+      alert('Controls:\nArrow keys: move\nP: plant\nW: water (uses 1 water)\nH or Space: harvest (when ripe)\nR or Reset button: restart');
+    });
+
+    // start
+    initGrid();
+    render();
+    setInterval(tick, 1000);
+  </script>
+</body>
+</html>

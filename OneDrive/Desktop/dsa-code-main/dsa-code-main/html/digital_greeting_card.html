@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>💌 Digital Greeting Card Maker</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600&family=Poppins:wght@400;600&display=swap');
+
+    body {
+      margin: 0;
+      font-family: 'Poppins', sans-serif;
+      background: radial-gradient(circle at top left, #ff9a9e, #fad0c4, #a1c4fd);
+      background-size: 300% 300%;
+      animation: moveBg 8s infinite alternate;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      overflow-x: hidden;
+      color: white;
+    }
+
+    @keyframes moveBg {
+      0% { background-position: left; }
+      100% { background-position: right; }
+    }
+
+    h1 {
+      margin-top: 25px;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.3);
+    }
+
+    .controls {
+      background: rgba(255,255,255,0.15);
+      backdrop-filter: blur(10px);
+      border-radius: 15px;
+      padding: 20px;
+      margin: 20px;
+      width: 320px;
+      box-shadow: 0 0 15px rgba(255,255,255,0.3);
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    textarea, select, input, button {
+      border-radius: 10px;
+      border: none;
+      outline: none;
+      padding: 10px;
+      font-size: 1rem;
+    }
+
+    button {
+      background: linear-gradient(90deg, #ff758c, #ff7eb3);
+      color: #fff;
+      font-weight: 600;
+      cursor: pointer;
+      transition: 0.3s;
+    }
+    button:hover {
+      transform: scale(1.05);
+    }
+
+    /* Card design area */
+    .card {
+      position: relative;
+      width: 400px;
+      height: 260px;
+      border-radius: 20px;
+      overflow: hidden;
+      box-shadow: 0 0 20px rgba(0,0,0,0.4);
+      margin-bottom: 20px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      text-align: center;
+      font-size: 1.4rem;
+      color: #fff;
+      transition: 0.5s;
+    }
+
+    .card p {
+      position: relative;
+      z-index: 2;
+      padding: 10px 15px;
+      line-height: 1.4;
+      text-shadow: 2px 2px 6px rgba(0,0,0,0.3);
+    }
+
+    /* Inside card decorations */
+    .decor {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      z-index: 1;
+      overflow: hidden;
+      pointer-events: none;
+    }
+
+    .decor span {
+      position: absolute;
+      font-size: 1.8rem;
+      opacity: 0.8;
+      animation: float 6s linear infinite;
+    }
+
+    @keyframes float {
+      0% { transform: translateY(100%) rotate(0deg); opacity: 1; }
+      100% { transform: translateY(-120%) rotate(360deg); opacity: 0; }
+    }
+
+    footer {
+      margin-top: auto;
+      padding: 10px;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>💌 Digital Greeting Card Maker</h1>
+
+  <div class="controls">
+    <textarea id="msg" placeholder="Type your greeting message..."></textarea>
+
+    <label>🎉 Theme:</label>
+    <select id="theme">
+      <option value="birthday">Birthday</option>
+      <option value="diwali">Diwali</option>
+      <option value="congrats">Congratulations</option>
+      <option value="love">Love</option>
+    </select>
+
+    <label>🎨 Text Color:</label>
+    <input type="color" id="textColor" value="#ffffff"/>
+
+    <label>🖋️ Font Style:</label>
+    <select id="font">
+      <option value="'Dancing Script', cursive">Handwritten</option>
+      <option value="'Poppins', sans-serif">Modern</option>
+      <option value="'Comic Sans MS'">Playful</option>
+      <option value="'Times New Roman'">Classic</option>
+    </select>
+
+    <button onclick="preview()">✨ Preview Card</button>
+    <button onclick="saveCard()">📸 Save as Image</button>
+  </div>
+
+  <div class="card" id="preview">
+    <div class="decor" id="decor"></div>
+    <p id="previewText">Your message will appear here 💖</p>
+  </div>
+
+  <footer>Made with ❤️ for Hacktoberfest 2025</footer>
+
+  <script>
+    function preview() {
+      const msg = document.getElementById('msg').value || 'Sending you warm wishes!';
+      const theme = document.getElementById('theme').value;
+      const color = document.getElementById('textColor').value;
+      const font = document.getElementById('font').value;
+
+      const card = document.getElementById('preview');
+      const text = document.getElementById('previewText');
+      const decor = document.getElementById('decor');
+
+      const bg = {
+        birthday: "linear-gradient(135deg, #f9d423, #ff4e50)",
+        diwali: "linear-gradient(135deg, #ff9966, #ff5e62)",
+        congrats: "linear-gradient(135deg, #56ab2f, #a8e063)",
+        love: "linear-gradient(135deg, #ff758c, #ff7eb3)"
+      };
+
+      const emojis = {
+        birthday: ['🎂', '🎈', '🎉', '🎁'],
+        diwali: ['✨', '🪔', '🎆', '🎇'],
+        congrats: ['🏆', '🎊', '🌟', '👏'],
+        love: ['💖', '❤️', '💞', '💘']
+      };
+
+      // Apply theme styles
+      card.style.background = bg[theme];
+      text.innerText = msg;
+      text.style.color = color;
+      text.style.fontFamily = font;
+
+      // Clear old decorations
+      decor.innerHTML = '';
+
+      // Add new decorations
+      for (let i = 0; i < 12; i++) {
+        const span = document.createElement('span');
+        span.innerText = emojis[theme][Math.floor(Math.random() * emojis[theme].length)];
+        span.style.left = Math.random() * 100 + '%';
+        span.style.top = Math.random() * 100 + '%';
+        span.style.animationDelay = Math.random() * 4 + 's';
+        span.style.fontSize = Math.random() * 1.5 + 1 + 'rem';
+        decor.appendChild(span);
+      }
+    }
+
+    function saveCard() {
+      html2canvas(document.getElementById('preview')).then(canvas => {
+        const link = document.createElement('a');
+        link.download = 'greeting_card.png';
+        link.href = canvas.toDataURL();
+        link.click();
+      });
+    }
+  </script>
+</body>
+</html>

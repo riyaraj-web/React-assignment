@@ -1,0 +1,26 @@
+import java.util.*;
+
+public class RemoveAnagrams {
+    public List<String> removeAnagrams(String[] words) {
+        List<String> result = new ArrayList<>();
+        String prev = ""; // To store the sorted version of the previous word
+
+        for (String word : words) {
+            char[] chars = word.toCharArray();
+            Arrays.sort(chars); // Sort the characters to check for anagrams
+            String sortedWord = new String(chars);
+
+            if (!sortedWord.equals(prev)) { // Add to result if not an anagram of the previous word
+                result.add(word);
+                prev = sortedWord; // Update the previous word
+            }
+        }
+        return result;
+    }
+
+    public static void main(String[] args) {
+        RemoveAnagrams solution = new RemoveAnagrams();
+        String[] words = {"abba", "baba", "bbaa", "cd", "cd"};
+        System.out.println(solution.removeAnagrams(words)); // Output: [abba, cd]
+    }
+}

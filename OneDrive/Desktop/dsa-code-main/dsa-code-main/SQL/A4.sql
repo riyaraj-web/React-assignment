@@ -1,0 +1,26 @@
+CREATE TABLE ACCOUNT (
+ Account_ID INT PRIMARY KEY, 
+ Customer_Name VARCHAR(100),
+ Account_Type VARCHAR(20),
+ Balance DECIMAL(10, 2),
+ Branch_Name VARCHAR(100)
+ );
+
+ INSERT INTO ACCOUNT VALUES(101,'Alice Sharma','Savings','50000.00','Delhi');
+ INSERT INTO ACCOUNT VALUES(102,'Ravi Kumar','Current','120000.00','Mumbai');
+ INSERT INTO ACCOUNT VALUES(103,'Sonia Mehta','Savings','75000.00','Chennai');
+ INSERT INTO ACCOUNT VALUES(104,'Arjun Singh','Current','30000.00','Delhi');
+ INSERT INTO ACCOUNT VALUES(105,'Priya Das','Savings','62000.00','Bangalore');
+
+--1
+ALTER TABLE ACCOUNT ADD Email VARCHAR(50);
+
+--2
+ALTER TABLE ACCOUNT ADD ACccount_OpeningDate Date;
+
+--3
+ALTER TABLE ACCOUNT 
+ALTER COLUMN Customer_Name TYPE VARCHAR(150);
+
+--4
+RENAME TABLE ACCOUNT TO BANK_ACCOUNT;

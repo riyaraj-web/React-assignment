@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Simple Manufacturing Game</title>
+  <style>
+    :root{--tile:64px}
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;display:flex;flex-direction:column;align-items:center;margin:18px;background:#f3f6f9}
+    h1{margin:6px 0 12px}
+    #game{display:grid;grid-template-columns:repeat(6, var(--tile));grid-gap:6px;background:#e6eef6;padding:10px;border-radius:12px}
+    .cell{width:var(--tile);height:var(--tile);display:flex;align-items:center;justify-content:center;border-radius:8px;position:relative;box-shadow:0 2px 0 rgba(0,0,0,0.06);font-size:20px}
+    .floor{background:#cfe0ff}
+    .raw{background:#ffd7a6}
+    .assembly{background:#d1ffd6}
+    .ship{background:#ffd6e0}
+    .player{position:absolute;right:6px;bottom:6px;width:18px;height:18px;border-radius:50%;background:#ffef7a;border:2px solid #b88f00;box-shadow:0 1px 0 rgba(0,0,0,0.2)}
+    #hud{margin-top:12px;display:flex;gap:16px;align-items:center}
+    .panel{background:white;padding:8px 12px;border-radius:8px;box-shadow:0 4px 16px rgba(0,0,0,0.06)}
+    button{padding:6px 10px;border-radius:6px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    small{display:block;color:#555;margin-top:6px}
+  </style>
+</head>
+<body>
+  <h1>Simple Manufacturing Game</h1>
+  <div id="game" aria-label="factory-grid"></div>
+
+  <div id="hud">
+    <div class="panel">Score: <strong id="score">0</strong><small>Deliver assembled products</small></div>
+    <div class="panel">Carrying: <strong id="carry">None</strong><small>Pick raw parts and assemble</small></div>
+    <div class="panel">Time: <strong id="time">0s</strong><small>Elapsed</small></div>
+    <div style="display:flex;gap:8px">
+      <button id="reset">Reset</button>
+      <button id="help">Controls</button>
+    </div>
+  </div>
+
+  <script>
+    // Manufacturing game
+    // Grid layout: RAW parts spawn on raw tile, go to ASSEMBLY tile to assemble, then to SHIP tile to deliver.
+    // Controls: Arrow keys move. E: pick/place. A: assemble (at assembly station). R: reset.
+
+    const ROWS = 4, COLS = 6; // 4x6 grid
+    const game = document.getElementById('game');
+    const scoreEl = document.getElementById('score');
+    const carryEl = document.getElementById('carry');
+    const timeEl = document.getElementById('time');
+    const resetBtn = document.getElementById('reset');
+    const helpBtn = document.getElementById('help');
+
+    // Define special tile positions
+    const RAW_POS = {r:1,c:0};
+    const ASSEMBLY_POS = {r:1,c:3};
+    const SHIP_POS = {r:1,c:5};
+
+    let grid = [];
+    let player = {r:1,c:1,carry:null};
+    let score = 0; let seconds = 0;
+
+    function initGrid(){
+      grid = [];
+      game.innerHTML = '';
+      game.style.gridTemplateColumns = `repeat(${COLS}, var(--tile))`;
+      for(let r=0;r<ROWS;r++){
+        for(let c=0;c<COLS;c++){
+          const cell = {type:'floor', part:null, assemblyProgress:0};
+          // mark special tiles
+          if(r===RAW_POS.r && c===RAW_POS.c) cell.type='raw';
+          if(r===ASSEMBLY_POS.r && c===ASSEMBLY_POS.c) cell.type='assembly';
+          if(r===SHIP_POS.r && c===SHIP_POS.c) cell.type='ship';
+          grid.push(cell);
+          const div = document.createElement('div');
+          div.className = 'cell ' + (cell.type || 'floor');
+          div.dataset.r = r; div.dataset.c = c;
+          div.innerHTML = '<div class="label"></div>';
+          game.appendChild(div);
+        }
+      }
+      // initial raw part
+      spawnRaw();
+      render();
+    }
+
+    function idx(r,c){return r*COLS + c}
+
+    function spawnRaw(){
+      const i = idx(RAW_POS.r, RAW_POS.c);
+      const cell = grid[i];
+      if(!cell.part) cell.part = {type:'raw'};
+    }
+
+    function render(){
+      for(let r=0;r<ROWS;r++){
+        for(let c=0;c<COLS;c++){
+          const i = idx(r,c); const cell = grid[i];
+          const div = game.children[i];
+          div.className = 'cell ' + (cell.type || 'floor');
+          const label = div.querySelector('.label');
+          label.textContent = '';
+          if(cell.part){
+            if(cell.part.type==='raw') label.textContent = '🔩';
+            if(cell.part.type==='assembled') label.textContent = '📦';
+            if(cell.part.type==='inprogress') label.textContent = '⚙️';
+          }
+          // assembly progress small indicator
+          if(cell.type==='assembly' && cell.assemblyProgress>0 && !cell.part){
+            label.textContent = '⏳' + cell.assemblyProgress;
+          }
+          // player marker
+          if(player.r===r && player.c===c){
+            if(!div.querySelector('.player')){
+              const p = document.createElement('div'); p.className='player'; div.appendChild(p);
+            }
+          } else {
+            const p = div.querySelector('.player'); if(p) p.remove();
+          }
+        }
+      }
+      scoreEl.textContent = score;
+      carryEl.textContent = player.carry ? (player.carry.type==='raw' ? 'Raw part' : 'Assembled product') : 'None';
+      timeEl.textContent = seconds + 's';
+    }
+
+    function move(dr,dc){
+      const nr = Math.max(0, Math.min(ROWS-1, player.r+dr));
+      const nc = Math.max(0, Math.min(COLS-1, player.c+dc));
+      player.r = nr; player.c = nc; render();
+    }
+
+    function pickOrPlace(){
+      const i = idx(player.r, player.c); const cell = grid[i];
+      // pick up part from tile if carrying nothing
+      if(!player.carry && cell.part){
+        player.carry = cell.part; cell.part = null; render(); return;
+      }
+      // place raw part onto assembly if at assembly and carrying raw
+      if(player.carry && player.carry.type==='raw' && cell.type==='assembly' && !cell.part){
+        cell.part = {type:'inprogress'}; cell.assemblyProgress = 0; player.carry = null; render(); return;
+      }
+      // place assembled product at ship to deliver (only by moving onto ship and pressing E)
+      if(player.carry && player.carry.type==='assembled' && cell.type==='ship'){
+        // deliver
+        score += 20; player.carry = null; render(); return;
+      }
+      // place down raw part on floor (drop)
+      if(player.carry && !cell.part && cell.type==='floor'){
+        cell.part = player.carry; player.carry = null; render(); return;
+      }
+    }
+
+    function assembleAction(){
+      const i = idx(player.r, player.c); const cell = grid[i];
+      if(cell.type==='assembly'){
+        // if there's an inprogress part, advance it
+        if(cell.part && cell.part.type==='inprogress'){
+          cell.assemblyProgress = (cell.assemblyProgress || 0) + 1;
+          if(cell.assemblyProgress >= 3){
+            cell.part = {type:'assembled'}; cell.assemblyProgress = 0;
+          }
+          render();
+        }
+      }
+    }
+
+    // automatic ticks: spawn raw parts occasionally and automatic assembly progress when player near
+    function tick(){
+      seconds++;
+      // occasionally spawn raw part at RAW_POS if empty (25% chance each 5 seconds)
+      if(seconds % 5 === 0){
+        const i = idx(RAW_POS.r, RAW_POS.c); if(!grid[i].part && Math.random() < 0.6) spawnRaw();
+      }
+      // passive assembly: if there's an inprogress part at assembly, it slowly progresses
+      const aIdx = idx(ASSEMBLY_POS.r, ASSEMBLY_POS.c);
+      const aCell = grid[aIdx];
+      if(aCell.part && aCell.part.type==='inprogress'){
+        aCell.assemblyProgress = (aCell.assemblyProgress || 0) + 0.5; // half-step
+        if(aCell.assemblyProgress >= 3){ aCell.part = {type:'assembled'}; aCell.assemblyProgress = 0; }
+      }
+      // if assembled product exists and player steps on assembly/ship, auto-pickup if empty-handed
+      if(player.r===ASSEMBLY_POS.r && player.c===ASSEMBLY_POS.c){ if(!player.carry && aCell.part && aCell.part.type==='assembled'){ player.carry = aCell.part; aCell.part = null; } }
+
+      render();
+    }
+
+    // keyboard
+    window.addEventListener('keydown', e => {
+      if(['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)){
+        e.preventDefault();
+        if(e.key==='ArrowUp') move(-1,0);
+        if(e.key==='ArrowDown') move(1,0);
+        if(e.key==='ArrowLeft') move(0,-1);
+        if(e.key==='ArrowRight') move(0,1);
+      }
+      if(e.key==='e' || e.key==='E') pickOrPlace();
+      if(e.key==='a' || e.key==='A') assembleAction();
+      if(e.key==='r' || e.key==='R') resetGame();
+    });
+
+    function resetGame(){ score = 0; seconds = 0; player = {r:1,c:1,carry:null}; initGrid(); }
+    resetBtn.addEventListener('click', resetGame);
+    helpBtn.addEventListener('click', ()=>{
+      alert('Controls:\nArrow keys: move\nE: pick/place/deliver\nA: assemble at assembly station\nR: restart');
+    });
+
+    initGrid(); render(); setInterval(tick, 1000);
+  </script>
+</body>
+</html>
